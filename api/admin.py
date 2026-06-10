@@ -1,8 +1,18 @@
 from django.contrib import admin
 from django.contrib.auth.models import User
 from django.contrib.auth.admin import UserAdmin
-from .models import UserProfile, Doctor, Drug, CartItem, Appointment, MedicalTip
-
+from .models import (
+    UserProfile,
+    Doctor,
+    Drug,
+    CartItem,
+    Appointment,
+    MedicalTip,
+    DoctorProfile,
+    DoctorTimeSlot,
+    ClinicalNote,
+    DrugOrder,
+)
 
 # ── Inline for UserProfile inside User ────────────────────────
 class UserProfileInline(admin.StackedInline):
@@ -77,6 +87,14 @@ class DrugAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(DrugOrder)
+class DrugOrderAdmin(admin.ModelAdmin):
+    list_display = ["id", "user", "total_amount", "status", "created_at"]
+    search_fields = ["user__email", "prescription_ref"]
+    list_filter = ["status"]
+    list_editable = ["status"]
+
+
 # ── CartItem Admin ─────────────────────────────────────────────
 @admin.register(CartItem)
 class CartItemAdmin(admin.ModelAdmin):
@@ -118,6 +136,25 @@ class MedicalTipAdmin(admin.ModelAdmin):
     search_fields = ["title", "content"]
     list_filter = ["category", "is_active"]
     list_editable = ["is_active"]
+
+
+@admin.register(DoctorProfile)
+class DoctorProfileAdmin(admin.ModelAdmin):
+    list_display = ["user", "doctor", "license_number", "is_accepting_patients"]
+    search_fields = ["user__email", "doctor__name", "license_number"]
+
+
+@admin.register(DoctorTimeSlot)
+class DoctorTimeSlotAdmin(admin.ModelAdmin):
+    list_display = ["doctor", "day", "start_time", "end_time", "is_available"]
+    list_filter = ["day", "is_available"]
+    search_fields = ["doctor__name"]
+
+
+@admin.register(ClinicalNote)
+class ClinicalNoteAdmin(admin.ModelAdmin):
+    list_display = ["doctor", "patient", "appointment", "follow_up_date", "created_at"]
+    search_fields = ["doctor__name", "patient__email"]
 
 
 # ── Admin Site Customization ───────────────────────────────────

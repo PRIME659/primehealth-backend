@@ -1,17 +1,46 @@
 from django.db import models
 from django.contrib.auth.models import User
+import uuid
 
 
 class UserProfile(models.Model):
+    ROLE_CHOICES = [
+        ("patient", "Patient"),
+        ("doctor", "Doctor"),
+        ("pharmacist", "Pharmacist"),
+        ("admin", "Admin"),
+        ("super_admin", "Super Admin"),
+    ]
+
     user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="profile")
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default="patient")
     phone = models.CharField(max_length=20, blank=True)
     blood_group = models.CharField(max_length=5, blank=True)
     health_interests = models.JSONField(default=list, blank=True)
     preferred_specialty = models.CharField(max_length=100, blank=True)
+    avatar = models.ImageField(upload_to="avatars/", blank=True, null=True)
+    is_verified = models.BooleanField(default=False)
+    session_id = models.CharField(max_length=100, blank=True, null=True)
+    last_login_ip = models.GenericIPAddressField(blank=True, null=True)
+    last_login_device = models.CharField(max_length=200, blank=True)
+    login_attempts = models.IntegerField(default=0)
+    locked_until = models.DateTimeField(blank=True, null=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
-        return f"{self.user.username} Profile"
+        return f"{self.user.username} - {self.role}"
+
+    def generate_session_id(self):
+        self.session_id = str(uuid.uuid4())
+        self.save()
+        return self.session_id
+
+    def is_locked(self):
+        from django.utils import timezone
+
+        if self.locked_until and self.locked_until > timezone.now():
+            return True
+        return False
 
 
 class Doctor(models.Model):
@@ -74,6 +103,34 @@ class Drug(models.Model):
     @property
     def is_available(self):
         return self.stock > 0
+
+
+class DrugOrder(models.Model):
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("processing", "Processing"),
+        ("dispensed", "Dispensed"),
+        ("cancelled", "Cancelled"),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="drug_orders")
+    pharmacist = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="processed_orders",
+    )
+    items = models.JSONField(default=list)
+    total_amount = models.DecimalField(max_digits=10, decimal_places=2, default=0.00)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending")
+    prescription_ref = models.CharField(max_length=100, blank=True)
+    notes = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Order {self.id} by {self.user.get_full_name()}"
 
 
 class CartItem(models.Model):
@@ -150,3 +207,69 @@ class MedicalTip(models.Model):
 
     def __str__(self):
         return self.title
+
+
+class DoctorProfile(models.Model):
+    user = models.OneToOneField(
+        User, on_delete=models.CASCADE, related_name="doctor_profile"
+    )
+    doctor = models.OneToOneField(
+        Doctor, on_delete=models.CASCADE, related_name="doctor_profile"
+    )
+    license_number = models.CharField(max_length=100, blank=True)
+    years_of_experience = models.IntegerField(default=0)
+    education = models.TextField(blank=True)
+    certifications = models.TextField(blank=True)
+    languages_spoken = models.JSONField(default=list, blank=True)
+    consultation_duration = models.IntegerField(default=30)
+    is_accepting_patients = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"Dr. {self.user.get_full_name()} Profile"
+
+
+class DoctorTimeSlot(models.Model):
+    DAY_CHOICES = [
+        ("monday", "Monday"),
+        ("tuesday", "Tuesday"),
+        ("wednesday", "Wednesday"),
+        ("thursday", "Thursday"),
+        ("friday", "Friday"),
+        ("saturday", "Saturday"),
+        ("sunday", "Sunday"),
+    ]
+
+    doctor = models.ForeignKey(
+        Doctor, on_delete=models.CASCADE, related_name="time_slots"
+    )
+    day = models.CharField(max_length=10, choices=DAY_CHOICES)
+    start_time = models.TimeField()
+    end_time = models.TimeField()
+    is_available = models.BooleanField(default=True)
+
+    def __str__(self):
+        return (
+            f"Dr. {self.doctor.name} - {self.day} {self.start_time} to {self.end_time}"
+        )
+
+
+class ClinicalNote(models.Model):
+    appointment = models.OneToOneField(
+        Appointment, on_delete=models.CASCADE, related_name="clinical_note"
+    )
+    doctor = models.ForeignKey(
+        Doctor, on_delete=models.CASCADE, related_name="clinical_notes"
+    )
+    patient = models.ForeignKey(
+        User, on_delete=models.CASCADE, related_name="clinical_notes"
+    )
+    diagnosis = models.TextField(blank=True)
+    prescription = models.TextField(blank=True)
+    notes = models.TextField(blank=True)
+    follow_up_date = models.DateField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Note for {self.patient.get_full_name()} by Dr. {self.doctor.name}"

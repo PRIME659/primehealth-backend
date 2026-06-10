@@ -1,16 +1,35 @@
 from django.contrib.auth.models import User
 from rest_framework import serializers
-from .models import UserProfile
-from .models import Doctor, Drug, CartItem, Appointment, MedicalTip
-
+from .models import (
+    UserProfile,
+    Doctor,
+    Drug,
+    CartItem,
+    Appointment,
+    MedicalTip,
+    DoctorProfile,
+    DoctorTimeSlot,
+    ClinicalNote,
+    DrugOrder,
+)
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, min_length=6)
     confirm_password = serializers.CharField(write_only=True)
+    role = serializers.ChoiceField(
+        choices=["patient", "doctor", "pharmacist"], default="patient"
+    )
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "email", "password", "confirm_password"]
+        fields = [
+            "first_name",
+            "last_name",
+            "email",
+            "password",
+            "confirm_password",
+            "role",
+        ]
 
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
@@ -25,7 +44,8 @@ class RegisterSerializer(serializers.ModelSerializer):
         return data
 
     def create(self, validated_data):
-        validated_data.pop("confirm_password")
+        role = validated_data.pop("role", "patient")
+        validated_data.pop("confirm_password", None)
         user = User.objects.create_user(
             username=validated_data["email"],
             email=validated_data["email"],
@@ -33,8 +53,85 @@ class RegisterSerializer(serializers.ModelSerializer):
             last_name=validated_data["last_name"],
             password=validated_data["password"],
         )
-        UserProfile.objects.create(user=user)
+        UserProfile.objects.create(user=user, role=role)
         return user
+
+
+class DoctorTimeSlotSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorTimeSlot
+        fields = ["id", "day", "start_time", "end_time", "is_available"]
+
+
+class DoctorProfileSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DoctorProfile
+        fields = [
+            "id",
+            "license_number",
+            "years_of_experience",
+            "education",
+            "certifications",
+            "languages_spoken",
+            "consultation_duration",
+            "is_accepting_patients",
+        ]
+
+
+class DrugOrderSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    pharmacist_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = DrugOrder
+        fields = [
+            "id",
+            "user",
+            "user_name",
+            "pharmacist",
+            "pharmacist_name",
+            "items",
+            "total_amount",
+            "status",
+            "prescription_ref",
+            "notes",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = ["user", "pharmacist", "created_at", "updated_at"]
+
+    def get_user_name(self, obj):
+        return obj.user.get_full_name()
+
+    def get_pharmacist_name(self, obj):
+        if obj.pharmacist:
+            return obj.pharmacist.get_full_name()
+        return None
+
+
+class ClinicalNoteSerializer(serializers.ModelSerializer):
+    patient_name = serializers.SerializerMethodField()
+    appointment_date = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClinicalNote
+        fields = [
+            "id",
+            "appointment",
+            "patient_name",
+            "appointment_date",
+            "diagnosis",
+            "prescription",
+            "notes",
+            "follow_up_date",
+            "created_at",
+        ]
+
+    def get_patient_name(self, obj):
+        return obj.patient.get_full_name()
+
+    def get_appointment_date(self, obj):
+        return obj.appointment.date
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

@@ -1390,7 +1390,7 @@ def chatbot(request):
         import google.generativeai as genai
 
         genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-pro")
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
         system_prompt = (
             "You are PrimeHealth Assistant, a helpful and friendly virtual health assistant "

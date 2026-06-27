@@ -1387,10 +1387,9 @@ def chatbot(request):
 
     try:
         from django.conf import settings
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        model = genai.GenerativeModel("gemini-1.5-flash")
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
         system_prompt = (
             "You are PrimeHealth Assistant, a helpful and friendly virtual health assistant "
@@ -1399,7 +1398,8 @@ def chatbot(request):
             "platform features, wellness tips and pharmacy questions. "
             "Never diagnose conditions or prescribe medications. "
             "Always recommend consulting a real doctor for serious concerns. "
-            "Keep responses short and easy to read."
+            "Keep responses short and easy to read. "
+            "You can respond to greetings and general conversation warmly."
         )
 
         conversation = "\n".join(
@@ -1411,7 +1411,10 @@ def chatbot(request):
 
         full_prompt = f"{system_prompt}\n\nConversation:\n{conversation}\n\nAssistant:"
 
-        response = model.generate_content(full_prompt)
+        response = client.models.generate_content(
+            model="gemini-2.0-flash",
+            contents=full_prompt,
+        )
 
         return Response({"reply": response.text})
 
